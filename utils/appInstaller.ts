@@ -15,7 +15,7 @@ export type AppManifest = {
   icon?: string;
   id: string;
   name: string;
-  source?: "appstore" | "external";
+  source?: "external";
   width?: number;
 };
 
@@ -173,7 +173,7 @@ export const installAppFromZip = async (
   zipBuffer: Buffer,
   zipFileName: string,
   onProgress?: ProgressCallback,
-  source: "appstore" | "external" = "external"
+  source: "external" = "external"
 ): Promise<InstallResult> => {
   try {
     onProgress?.("Reading archive", 5);

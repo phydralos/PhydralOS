@@ -19,17 +19,16 @@
 9. [Process Manager API](#9-process-manager-api)
 10. [Session Context API](#10-session-context-api)
 11. [Auth Context API](#11-auth-context-api)
-12. [AppStore & Firebase Integration](#12-appstore--firebase-integration)
-13. [Window Properties & Decorations](#13-window-properties--decorations)
-14. [Building a Built-in App (Advanced)](#14-building-a-built-in-app-advanced)
-15. [Testing & Debugging](#15-testing--debugging)
-16. [Full Example: Minimal External App](#16-full-example-minimal-external-app)
+12. [Window Properties & Decorations](#12-window-properties--decorations)
+13. [Building a Built-in App (Advanced)](#13-building-a-built-in-app-advanced)
+14. [Testing & Debugging](#14-testing--debugging)
+15. [Full Example: Minimal External App](#15-full-example-minimal-external-app)
 
 ---
 
 ## 1. Architecture Overview
 
-Pyhdra OS is a web-based operating system that runs entirely in the browser. It simulates a desktop environment with windows, a taskbar, a file system, and an app store.
+Pyhdra OS is a web-based operating system that runs entirely in the browser. It simulates a desktop environment with windows, a taskbar, a file system, and an app installer for external apps.
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -38,10 +37,10 @@ Pyhdra OS is a web-based operating system that runs entirely in the browser. It 
 │  │  Window    │  │ Process  │  │  File System │  │
 │  │  Manager   │  │ Manager  │  │  (BrowserFS) │  │
 │  └───────────┘  └──────────┘  └──────────────┘  │
-│  ┌───────────┐  ┌──────────┐  ┌──────────────┐  │
-│  │  Session   │  │   Auth   │  │   AppStore   │  │
-│  │  Context   │  │ Context  │  │   (Firebase) │  │
-│  └───────────┘  └──────────┘  └──────────────┘  │
+│  ┌───────────┐  ┌──────────┐                     │
+│  │  Session   │  │   Auth   │                     │
+│  │  Context   │  │ Context  │                     │
+│  └───────────┘  └──────────┘                     │
 │                       │                          │
 │              ┌────────┴────────┐                 │
 │              │   App Directory  │                 │
@@ -55,7 +54,7 @@ Pyhdra OS is a web-based operating system that runs entirely in the browser. It 
 - **React + Next.js** — UI framework and SSR
 - **TypeScript** — type safety throughout
 - **BrowserFS** — in-browser file system (OverlayFS: HTTPRequest readable + IndexedDB writable)
-- **Firebase** — Authentication, Firestore (user accounts, app store listings, reviews)
+- **Firebase** — Authentication, Firestore (user accounts)
 - **Styled Components** — styling for built-in apps
 - **react-rnd** — draggable/resizable windows
 
@@ -69,13 +68,14 @@ Built-in apps are React components registered in the process directory at:
 
 `contexts/process/directory.ts`
 
-They are compiled into the OS bundle and have full access to all OS contexts (file system, process manager, session, auth). Examples: Browser, Terminal, FileExplorer, AppStore.
+They are compiled into the OS bundle and have full access to all OS contexts (file system, process manager, session, auth). Examples: Browser, Terminal, FileExplorer.
 
 ### External Apps (LoadedApp)
 
-External apps are standalone HTML/CSS/JS applications packaged as `.zip` files. They are installed via the App Installer or App Store and run inside an `<iframe>` sandbox within the `LoadedApp` component.
+External apps are standalone HTML/CSS/JS applications packaged as `.zip` files. They are installed via the App Installer (sideload) and run inside an `<iframe>` sandbox within the `LoadedApp` component.
 
 **External apps:**
+
 - Are loaded from the virtual file system at `/Program Files/<app-id>/`
 - Run in a sandboxed iframe (`allow-scripts allow-same-origin allow-forms allow-modals allow-popups`)
 - Can communicate with the OS via the **Account Bridge** (`window.pyhdraAccount`) postMessage API
@@ -93,26 +93,26 @@ Every external app must include a `manifest.json` file at the root of its zip pa
 ```typescript
 type AppManifest = {
   // ── Required ──
-  id: string;          // Unique app identifier (e.g. "my-awesome-app")
-  name: string;        // Display name (e.g. "My Awesome App")
-  entry: string;       // Entry HTML file relative to manifest (e.g. "index.html")
+  id: string; // Unique app identifier (e.g. "my-awesome-app")
+  name: string; // Display name (e.g. "My Awesome App")
+  entry: string; // Entry HTML file relative to manifest (e.g. "index.html")
 
   // ── Optional: Window ──
-  width?: number;            // Initial window width in px (default: 640)
-  height?: number;           // Initial window height in px (default: 480)
-  allowResizing?: boolean;   // Whether the window can be resized (default: true)
-  hideTitlebar?: boolean;    // Hide the window title bar (default: false)
+  width?: number; // Initial window width in px (default: 640)
+  height?: number; // Initial window height in px (default: 480)
+  allowResizing?: boolean; // Whether the window can be resized (default: true)
+  hideTitlebar?: boolean; // Hide the window title bar (default: false)
   hideCloseButton?: boolean; // Hide the close button (default: false)
   hideMinimizeButton?: boolean; // Hide minimize button (default: false)
   hideMaximizeButton?: boolean; // Hide maximize button (default: false)
 
   // ── Optional: Visual ──
-  icon?: string;         // Path to icon relative to app dir (e.g. "icon.png")
+  icon?: string; // Path to icon relative to app dir (e.g. "icon.png")
   backgroundColor?: string; // Window background color (e.g. "#1a1a2e")
 
   // ── Optional: Metadata ──
-  title?: string;        // Window title (overrides `name` in titlebar)
-  source?: "appstore" | "external"; // Set automatically by installer
+  title?: string; // Window title (overrides `name` in titlebar)
+  source?: "external"; // Set automatically by installer
 };
 ```
 
@@ -187,13 +187,6 @@ zip -r my-app.zip manifest.json index.html styles/ scripts/ assets/
 5. The app is registered in `/System/installed-apps.json` with `source: "external"`.
 6. The app can now be launched from the Desktop or Start Menu.
 
-### Via App Store (Firebase)
-
-1. App developer publishes an app listing to the `appstore_apps` Firestore collection with a `downloadUrl` pointing to the zip file.
-2. User purchases/downloads the app from the AppStore.
-3. The zip is fetched via `downloadApp()` and then installed through the same `installAppFromZip()` flow with `source: "appstore"`.
-4. The purchase is recorded in the user's Firestore document (`purchasedAppIds` array) so the app can be reinstalled on any device after sign-in.
-
 ### installed-apps.json
 
 Installed apps are tracked in `/System/installed-apps.json`:
@@ -205,7 +198,7 @@ Installed apps are tracked in `/System/installed-apps.json`:
     "name": "Calculator Pro",
     "entry": "index.html",
     "icon": "assets/icon.png",
-    "source": "appstore",
+    "source": "external",
     "width": 360,
     "height": 540,
     "allowResizing": false
@@ -216,6 +209,7 @@ Installed apps are tracked in `/System/installed-apps.json`:
 ### Uninstallation
 
 Uninstalling an app:
+
 1. Deletes `/Program Files/<app-id>/` recursively.
 2. Removes Desktop and Start Menu shortcuts.
 3. Removes the entry from `installed-apps.json`.
@@ -244,6 +238,7 @@ allow-scripts allow-same-origin allow-forms allow-modals allow-popups
 ```
 
 This means external apps can:
+
 - Run JavaScript
 - Access same-origin APIs (blob URLs)
 - Submit forms
@@ -251,6 +246,7 @@ This means external apps can:
 - Open popups
 
 They **cannot**:
+
 - Access the top window directly (cross-origin restriction via blob URL)
 - Make network requests to the OS's Firebase instance directly
 - Modify the OS file system directly (must use the bridge)
@@ -281,63 +277,39 @@ const balance = await window.pyhdraAccount.getBalance();
 // Returns: number or null
 ```
 
-#### `window.pyhdraAccount.updateBalance(newBalance)`
-
-Updates the user's wallet balance. **Only available for App Store apps** (`source: "appstore"`). External/sideloaded apps can read but not write.
-
-```javascript
-const success = await window.pyhdraAccount.updateBalance(500);
-// Returns: true if the update was allowed and succeeded
-```
-
 ### Permission model
 
-| Action | App Store apps | Sideloaded apps |
-|--------|---------------|-----------------|
-| `getProfile` | ✅ Read | ✅ Read |
-| `getBalance` | ✅ Read | ✅ Read |
-| `updateBalance` | ✅ Write | ❌ Denied |
+The Account Bridge is **read-only**. All external apps can read profile and balance data but cannot modify any account state.
+
+| Action       | External apps |
+| ------------ | ------------- |
+| `getProfile` | ✅ Read       |
+| `getBalance` | ✅ Read       |
 
 ### Example usage in an external app
 
 ```html
 <!DOCTYPE html>
 <html>
-<head>
-  <title>My App</title>
-</head>
-<body>
-  <div id="app">
-    <h1>Welcome, <span id="username">Guest</span></h1>
-    <p>Balance: $<span id="balance">0</span></p>
-    <button id="deductBtn">Spend $10</button>
-  </div>
+  <head>
+    <title>My App</title>
+  </head>
+  <body>
+    <div id="app">
+      <h1>Welcome, <span id="username">Guest</span></h1>
+      <p>Balance: $<span id="balance">0</span></p>
+    </div>
 
-  <script>
-    (async function() {
-      const profile = await window.pyhdraAccount.getProfile();
-      if (profile) {
-        document.getElementById('username').textContent = profile.username;
-        document.getElementById('balance').textContent = profile.balance;
-      }
-
-      document.getElementById('deductBtn').addEventListener('click', async () => {
-        const currentBalance = await window.pyhdraAccount.getBalance();
-        if (currentBalance !== null && currentBalance >= 10) {
-          const ok = await window.pyhdraAccount.updateBalance(currentBalance - 10);
-          if (ok) {
-            document.getElementById('balance').textContent = currentBalance - 10;
-            alert('Purchase successful!');
-          } else {
-            alert('Unable to update balance.');
-          }
-        } else {
-          alert('Insufficient balance.');
+    <script>
+      (async function () {
+        const profile = await window.pyhdraAccount.getProfile();
+        if (profile) {
+          document.getElementById("username").textContent = profile.username;
+          document.getElementById("balance").textContent = profile.balance;
         }
-      });
-    })();
-  </script>
-</body>
+      })();
+    </script>
+  </body>
 </html>
 ```
 
@@ -365,49 +337,49 @@ The file system is available to **built-in apps** via the `useFileSystem()` hook
 ```typescript
 const {
   // ── Core FS operations ──
-  exists,           // (path: string) => Promise<boolean>
-  lstat,            // (path: string) => Promise<Stats>  (has isDirectory())
-  stat,             // (path: string) => Promise<Stats>
-  mkdir,            // (path: string, overwrite?: boolean) => Promise<boolean>
-  mkdirRecursive,   // (path: string) => Promise<void>
-  readdir,          // (path: string) => Promise<string[]>
-  readFile,         // (path: string) => Promise<Buffer>
-  writeFile,        // (path: string, data: Buffer | string, overwrite?: boolean) => Promise<boolean>
-  rename,           // (oldPath: string, newPath: string) => Promise<boolean>
-  rmdir,            // (path: string) => Promise<boolean>
-  unlink,           // (path: string) => Promise<boolean>
+  exists, // (path: string) => Promise<boolean>
+  lstat, // (path: string) => Promise<Stats>  (has isDirectory())
+  stat, // (path: string) => Promise<Stats>
+  mkdir, // (path: string, overwrite?: boolean) => Promise<boolean>
+  mkdirRecursive, // (path: string) => Promise<void>
+  readdir, // (path: string) => Promise<string[]>
+  readFile, // (path: string) => Promise<Buffer>
+  writeFile, // (path: string, data: Buffer | string, overwrite?: boolean) => Promise<boolean>
+  rename, // (oldPath: string, newPath: string) => Promise<boolean>
+  rmdir, // (path: string) => Promise<boolean>
+  unlink, // (path: string) => Promise<boolean>
 
   // ── Extended operations ──
-  rootFs,           // RootFileSystem | undefined — direct BrowserFS access
-  fs,               // FSModule | undefined — raw BrowserFS module
-  createPath,       // (name, dir, buffer?, iteration?, overwrite?) => Promise<string>
-  deletePath,       // (path: string) => Promise<boolean>
-  updateFolder,     // (folder, newFile?, oldFile?) => Promise<void>
-  copyEntries,      // (entries: string[]) => void
-  moveEntries,      // (entries: string[]) => void
-  pasteList,        // Record<string, "copy" | "move">
-  addFile,          // (dir, callback, accept?, multiple?) => Promise<string[]>
-  mapFs,            // (directory, existingHandle?) => Promise<string>
-  mountFs,          // (url: string) => Promise<void>
-  unmountFs,        // (url: string) => void
-  unMapFs,          // (directory, hasNoHandle?) => Promise<void>
-  addFsWatcher,     // (folder, updateFiles) => void
-  removeFsWatcher,  // (folder, updateFiles) => void
+  rootFs, // RootFileSystem | undefined — direct BrowserFS access
+  fs, // FSModule | undefined — raw BrowserFS module
+  createPath, // (name, dir, buffer?, iteration?, overwrite?) => Promise<string>
+  deletePath, // (path: string) => Promise<boolean>
+  updateFolder, // (folder, newFile?, oldFile?) => Promise<void>
+  copyEntries, // (entries: string[]) => void
+  moveEntries, // (entries: string[]) => void
+  pasteList, // Record<string, "copy" | "move">
+  addFile, // (dir, callback, accept?, multiple?) => Promise<string[]>
+  mapFs, // (directory, existingHandle?) => Promise<string>
+  mountFs, // (url: string) => Promise<void>
+  unmountFs, // (url: string) => void
+  unMapFs, // (directory, hasNoHandle?) => Promise<void>
+  addFsWatcher, // (folder, updateFiles) => void
+  removeFsWatcher, // (folder, updateFiles) => void
 } = useFileSystem();
 ```
 
 ### Key paths
 
-| Path | Description |
-|------|-------------|
-| `/` | Root |
-| `/Program Files/` | Installed apps |
-| `/System/` | System files, icons, installed-apps.json |
-| `/System/Icons/` | System icons |
-| `/Users/` | User directories |
-| `~/Desktop` | Desktop shortcuts |
-| `~/Start Menu` | Start Menu shortcuts |
-| `~/Snapshots` | Save states |
+| Path              | Description                              |
+| ----------------- | ---------------------------------------- |
+| `/`               | Root                                     |
+| `/Program Files/` | Installed apps                           |
+| `/System/`        | System files, icons, installed-apps.json |
+| `/System/Icons/`  | System icons                             |
+| `/Users/`         | User directories                         |
+| `~/Desktop`       | Desktop shortcuts                        |
+| `~/Start Menu`    | Start Menu shortcuts                     |
+| `~/Snapshots`     | Save states                              |
 
 ### Reading a file
 
@@ -421,7 +393,11 @@ const json = JSON.parse(text);
 
 ```typescript
 await mkdirRecursive("/Program Files/my-app/data");
-await writeFile("/Program Files/my-app/data/config.json", JSON.stringify(config), true);
+await writeFile(
+  "/Program Files/my-app/data/config.json",
+  JSON.stringify(config),
+  true
+);
 ```
 
 ---
@@ -432,17 +408,17 @@ Available to **built-in apps** via `useProcesses()`.
 
 ```typescript
 const {
-  processes,        // Record<string, Process> — all running processes
-  open,             // (id: string, args?: ProcessArguments, icon?) => void
-  close,            // (id: string, closing?: boolean) => void
+  processes, // Record<string, Process> — all running processes
+  open, // (id: string, args?: ProcessArguments, icon?) => void
+  close, // (id: string, closing?: boolean) => void
   closeWithTransition, // (id: string) => void  (animated close)
-  maximize,         // (id: string) => void
-  minimize,         // (id: string) => void
-  title,            // (id: string, newTitle: string) => void
-  icon,             // (id: string, newIcon: string) => void
-  url,              // (id: string, newUrl: string) => void
-  argument,         // (id, name, value) => void  (set process argument)
-  linkElement,      // (id, name, element) => void  (link DOM element)
+  maximize, // (id: string) => void
+  minimize, // (id: string) => void
+  title, // (id: string, newTitle: string) => void
+  icon, // (id: string, newIcon: string) => void
+  url, // (id: string, newUrl: string) => void
+  argument, // (id, name, value) => void  (set process argument)
+  linkElement, // (id, name, element) => void  (link DOM element)
   closeProcessesByUrl, // (url: string) => void
 } = useProcesses();
 ```
@@ -476,7 +452,7 @@ When opening a process, you can pass these arguments:
 
 ```typescript
 type ProcessArguments = {
-  url?: string;                    // URL to load (for Browser, LoadedApp, etc.)
+  url?: string; // URL to load (for Browser, LoadedApp, etc.)
   allowResizing?: boolean;
   autoSizing?: boolean;
   backgroundBlur?: string;
@@ -506,54 +482,54 @@ Available to **built-in apps** via `useSession()`.
 ```typescript
 const {
   // ── Window management ──
-  foregroundId,         // string — current foreground window ID
-  stackOrder,           // string[] — z-order of windows
-  windowStates,         // Record<string, { position?, size? }>
+  foregroundId, // string — current foreground window ID
+  stackOrder, // string[] — z-order of windows
+  windowStates, // Record<string, { position?, size? }>
   setWindowStates,
-  prependToStack,       // (id: string) => void
-  removeFromStack,      // (id: string) => void
+  prependToStack, // (id: string) => void
+  removeFromStack, // (id: string) => void
   setForegroundId,
 
   // ── Auth ──
-  authUser,             // AuthUser | null
-  isLocked,             // boolean — is lockscreen showing
-  sessionLoaded,        // boolean
+  authUser, // AuthUser | null
+  isLocked, // boolean — is lockscreen showing
+  sessionLoaded, // boolean
   setAuthUser,
   setIsLocked,
   userEmail,
   setUserEmail,
 
   // ── Appearance ──
-  themeName,            // ThemeName
+  themeName, // ThemeName
   setThemeName,
-  wallpaperImage,       // string
-  wallpaperFit,         // "center" | "fill" | "fit" | "stretch" | "tile"
+  wallpaperImage, // string
+  wallpaperFit, // "center" | "fill" | "fit" | "stretch" | "tile"
   setWallpaper,
-  cursor,               // string | undefined
+  cursor, // string | undefined
   setCursor,
-  closeEffect,          // string
+  closeEffect, // string
   setCloseEffect,
 
   // ── Desktop ──
-  iconPositions,        // Record<string, { gridColumnStart, gridRowStart }>
+  iconPositions, // Record<string, { gridColumnStart, gridRowStart }>
   setIconPositions,
-  sortOrders,           // Record<string, [string[], SortBy?, boolean?]>
+  sortOrders, // Record<string, [string[], SortBy?, boolean?]>
   setSortOrder,
-  views,                // Record<string, FileManagerViewNames>
+  views, // Record<string, FileManagerViewNames>
   setViews,
 
   // ── Features ──
-  aiEnabled,            // boolean
+  aiEnabled, // boolean
   setAiEnabled,
-  widgetsEnabled,       // boolean
+  widgetsEnabled, // boolean
   setWidgetsEnabled,
-  clockSource,          // "local" | "ntp"
+  clockSource, // "local" | "ntp"
   setClockSource,
 
   // ── History ──
-  recentFiles,          // [url, pid, title][]
+  recentFiles, // [url, pid, title][]
   updateRecentFiles,
-  runHistory,           // string[]
+  runHistory, // string[]
   setRunHistory,
 } = useSession();
 ```
@@ -566,17 +542,16 @@ Available to **built-in apps** via `useAuthContext()`.
 
 ```typescript
 const {
-  user,              // AuthUser | null
-  initializing,      // boolean — true during initial auth check
-  error,             // string | null
-  signIn,            // (email, password) => Promise<void>
-  signUp,            // (email, password, details: { username, country?, isDeveloper? }) => Promise<void>
-  signOutUser,       // () => Promise<void>
-  resetPassword,     // (email) => Promise<void>
-  clearError,        // () => void
-  updateBalance,     // (newBalance: number) => Promise<boolean>
-  addPurchasedApp,   // (appId: string, cost: number) => Promise<boolean>
+  user, // AuthUser | null
+  initializing, // boolean — true during initial auth check
+  error, // string | null
+  signIn, // (email, password) => Promise<void>
+  signUp, // (email, password, details: { username, country?, isDeveloper? }) => Promise<void>
+  signOutUser, // () => Promise<void>
+  resetPassword, // (email) => Promise<void>
+  clearError, // () => void
 } = useAuthContext();
+// Note: updateBalance and addPurchasedApp are available to built-in apps only
 ```
 
 ### AuthUser type
@@ -599,115 +574,9 @@ type AuthUser = {
 };
 ```
 
-### Firebase collections
-
-| Collection | Document ID | Purpose |
-|-----------|-------------|---------|
-| `users` | Firebase Auth UID | User account profile (balance, purchased apps, etc.) |
-| `appstore_apps` | App ID | App Store listings |
-| `appstore_reviews` | Review ID | User reviews for apps |
-
 ---
 
-## 12. AppStore & Firebase Integration
-
-### Publishing an app to the App Store
-
-To list your app in the App Store, add a document to the `appstore_apps` Firestore collection:
-
-```typescript
-{
-  id: "calculator-pro",
-  name: "Calculator Pro",
-  developer: "Your Name",
-  description: "A powerful calculator app.",
-  tagline: "Calculate everything, beautifully.",
-  category: "Utilities",          // "Development" | "Games" | "Media" | "Productivity" | "Social" | "Utilities"
-  price: 0,                       // 0 for free, or positive number
-  version: "1.0.0",
-  iconUrl: "https://example.com/icon.png",
-  downloadUrl: "https://example.com/calculator-pro.zip",
-  size: "2.5 MB",
-  rating: 4.8,
-  ratingCount: 913,
-  ageRating: "3+",
-  badges: ["Built for Pyhdra OS"],
-  screenshots: ["https://example.com/screenshot1.png"],
-  heroImage: "https://example.com/hero.png",
-  isHero: false,
-  isFeaturedGrid: false,
-  isTrendingApp: false,
-  isTrendingGame: false,
-  isDiscoverMore: false,
-  sysReqs: {
-    os: "Pyhdra OS 1.0+",
-    architecture: "Any",
-    memory: "Any",
-    graphics: "Any"
-  },
-  changelog: "v1.0.0: Initial release."
-}
-```
-
-### AppStoreApp type (from `mockData.ts`)
-
-```typescript
-type AppStoreApp = {
-  id: string;
-  name: string;
-  developer: string;
-  description: string;
-  category: AppCategory;
-  price: number;
-  version: string;
-  iconUrl: string;
-  downloadUrl: string;
-  tagline?: string;
-  ageRating?: string;
-  badges?: string[];
-  screenshots?: string[];
-  heroImage?: string;
-  size?: string;
-  rating?: number;
-  ratingCount?: number;
-  reviews?: AppReview[];
-  sysReqs?: SystemRequirements;
-  changelog?: string;
-  isHero?: boolean;
-  isFeaturedGrid?: boolean;
-  isTrendingApp?: boolean;
-  isTrendingGame?: boolean;
-  isDiscoverMore?: boolean;
-};
-```
-
-### Purchase flow
-
-1. User clicks "Buy" or "Get" in the AppStore.
-2. If the app has a price > 0, `addPurchasedApp(appId, cost)` is called, which:
-   - Checks the user's balance.
-   - Deducts the cost from the balance.
-   - Adds the app ID to `purchasedAppIds` in Firestore.
-3. The app zip is downloaded via `downloadApp()` and installed via `installAppFromZip()`.
-4. On subsequent logins, purchased apps appear in the user's Library and can be reinstalled without paying again.
-
-### Submitting reviews
-
-Reviews are stored in the `appstore_reviews` collection:
-
-```typescript
-type AppReview = {
-  id: string;        // e.g. "rev-1690000000000"
-  comment: string;
-  date: string;      // ISO date string (YYYY-MM-DD)
-  rating: number;    // 1-5
-  userName: string;
-};
-```
-
----
-
-## 13. Window Properties & Decorations
+## 12. Window Properties & Decorations
 
 When registering a built-in app in the process directory, you can control window behavior:
 
@@ -754,13 +623,13 @@ libs: [
 
 ---
 
-## 14. Building a Built-in App (Advanced)
+## 13. Building a Built-in App (Advanced)
 
 Built-in apps are React components that receive `ComponentProcessProps`:
 
 ```typescript
 type ComponentProcessProps = {
-  id: string;  // The process ID
+  id: string; // The process ID
 };
 ```
 
@@ -827,7 +696,7 @@ const handleOpenBrowser = () => {
 
 ---
 
-## 15. Testing & Debugging
+## 14. Testing & Debugging
 
 ### Development server
 
@@ -865,7 +734,7 @@ npx tsc --noEmit
 
 ---
 
-## 16. Full Example: Minimal External App
+## 15. Full Example: Minimal External App
 
 ### manifest.json
 
@@ -887,83 +756,66 @@ npx tsc --noEmit
 ```html
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Hello Pyhdra</title>
-  <style>
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
-      font-family: system-ui, -apple-system, sans-serif;
-      background: #1a1a2e;
-      color: #e0e0e0;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      gap: 16px;
-    }
-    h1 { font-size: 24px; }
-    p { color: #888; font-size: 14px; }
-    .balance {
-      background: rgba(255,255,255,0.08);
-      padding: 8px 16px;
-      border-radius: 8px;
-      font-size: 16px;
-      font-weight: 600;
-    }
-    button {
-      background: #4ade80;
-      color: #141414;
-      border: none;
-      padding: 10px 20px;
-      border-radius: 8px;
-      font-weight: 700;
-      cursor: pointer;
-      transition: transform 0.1s;
-    }
-    button:hover { transform: scale(1.05); }
-    button:active { transform: scale(0.95); }
-  </style>
-</head>
-<body>
-  <h1>👋 Hello, Pyhdra!</h1>
-  <p>Welcome to my app.</p>
-  <div class="balance" id="balance-display">Loading balance...</div>
-  <button id="action-btn">Spend $5</button>
-
-  <script>
-    let currentBalance = 0;
-
-    async function init() {
-      const balance = await window.pyhdraAccount.getBalance();
-      if (balance !== null) {
-        currentBalance = balance;
-        document.getElementById('balance-display').textContent = '$' + balance;
-      } else {
-        document.getElementById('balance-display').textContent = 'Sign in to view balance';
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Hello Pyhdra</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
-    }
+      body {
+        font-family:
+          system-ui,
+          -apple-system,
+          sans-serif;
+        background: #1a1a2e;
+        color: #e0e0e0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        gap: 16px;
+      }
+      h1 {
+        font-size: 24px;
+      }
+      p {
+        color: #888;
+        font-size: 14px;
+      }
+      .balance {
+        background: rgba(255, 255, 255, 0.08);
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>👋 Hello, Pyhdra!</h1>
+    <p>Welcome to my app.</p>
+    <div class="balance" id="balance-display">Loading balance...</div>
 
-    document.getElementById('action-btn').addEventListener('click', async () => {
-      if (currentBalance >= 5) {
-        const ok = await window.pyhdraAccount.updateBalance(currentBalance - 5);
-        if (ok) {
-          currentBalance -= 5;
-          document.getElementById('balance-display').textContent = '$' + currentBalance;
-          alert('Spent $5!');
+    <script>
+      async function init() {
+        const balance = await window.pyhdraAccount.getBalance();
+        if (balance !== null) {
+          document.getElementById("balance-display").textContent =
+            "$" + balance;
         } else {
-          alert('This app cannot modify balance.');
+          document.getElementById("balance-display").textContent =
+            "Sign in to view balance";
         }
-      } else {
-        alert('Insufficient balance.');
       }
-    });
 
-    init();
-  </script>
-</body>
+      init();
+    </script>
+  </body>
 </html>
 ```
 
@@ -988,30 +840,28 @@ Place `hello-pyhdra.zip` in `public/`, then open it from the File Explorer in th
 
 ## Quick Reference
 
-| What | Where |
-|------|-------|
-| Process directory (app registry) | `contexts/process/directory.ts` |
-| Process types | `contexts/process/types.ts` |
-| Process functions (open/close/etc.) | `contexts/process/functions.ts` |
-| File system context | `contexts/fileSystem/index.ts` |
-| File system config | `contexts/fileSystem/FileSystemConfig.ts` |
-| Auth context | `contexts/auth/index.tsx` |
-| Auth hook | `hooks/useAuth.ts` |
-| Account Firestore functions | `lib/account.ts` |
-| Account bridge (iframe API) | `lib/accountBridge.ts` |
-| Firebase init | `lib/firebase.ts` |
-| App installer | `utils/appInstaller.ts` |
-| AppStore Firebase functions | `components/apps/AppStore/firebase.ts` |
-| AppStore component | `components/apps/AppStore/index.tsx` |
-| AppStore types | `components/apps/AppStore/mockData.ts` |
-| LoadedApp (external app runner) | `components/apps/LoadedApp/index.tsx` |
-| Window component | `components/system/Window/index.tsx` |
-| RenderComponent | `components/system/Apps/RenderComponent.tsx` |
-| Session context | `contexts/session/index.ts` |
-| Session types | `contexts/session/types.ts` |
-| Constants | `utils/constants.ts` |
-| ComponentProcessProps | `components/system/Apps/RenderComponent.tsx` |
+| What                                | Where                                        |
+| ----------------------------------- | -------------------------------------------- |
+| Process directory (app registry)    | `contexts/process/directory.ts`              |
+| Process types                       | `contexts/process/types.ts`                  |
+| Process functions (open/close/etc.) | `contexts/process/functions.ts`              |
+| File system context                 | `contexts/fileSystem/index.ts`               |
+| File system config                  | `contexts/fileSystem/FileSystemConfig.ts`    |
+| Auth context                        | `contexts/auth/index.tsx`                    |
+| Auth hook                           | `hooks/useAuth.ts`                           |
+| Account Firestore functions         | `lib/account.ts`                             |
+| Account bridge (iframe API)         | `lib/accountBridge.ts`                       |
+| Firebase init                       | `lib/firebase.ts`                            |
+| App installer                       | `utils/appInstaller.ts`                      |
+| LoadedApp (external app runner)     | `components/apps/LoadedApp/index.tsx`        |
+| Window component                    | `components/system/Window/index.tsx`         |
+| RenderComponent                     | `components/system/Apps/RenderComponent.tsx` |
+| Session context                     | `contexts/session/index.ts`                  |
+| Session types                       | `contexts/session/types.ts`                  |
+| Constants                           | `utils/constants.ts`                         |
+| ComponentProcessProps               | `components/system/Apps/RenderComponent.tsx` |
 
 ---
 
-*This documentation is maintained alongside the Pyhdra OS codebase. If the APIs change, this file should be updated accordingly.*
+_This documentation is maintained alongside the Pyhdra OS codebase. If the APIs change, this file should be updated accordingly._
+

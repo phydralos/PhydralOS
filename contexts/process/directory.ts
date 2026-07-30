@@ -3,17 +3,6 @@ import { type Processes } from "contexts/process/types";
 import { FOLDER_ICON, TASKBAR_HEIGHT } from "utils/constants";
 
 const directory: Processes = {
-  AppStore: {
-    Component: dynamic(() => import("components/apps/AppStore")),
-    allowResizing: false,
-    backgroundColor: "#141414",
-    defaultSize: {
-      height: 680,
-      width: 390,
-    },
-    icon: "/System/Icons/appstore.svg",
-    title: "Play Store",
-  },
   Browser: {
     Component: dynamic(() => import("components/apps/Browser")),
     backgroundColor: "#FFF",

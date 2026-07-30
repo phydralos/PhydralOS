@@ -42,9 +42,11 @@ const nextConfig = {
     },
   ],
   output: "export",
+  poweredByHeader: false,
   productionBrowserSourceMaps: false,
   reactProductionProfiling: false,
   reactStrictMode: !isProduction,
+  trailingSlash: true,
   webpack: (config) => {
     config.plugins.push(
       new webpack.NormalModuleReplacementPlugin(/node:/, (resource) => {

@@ -3,26 +3,23 @@
  * account profile via postMessage.
  *
  * Permission model:
- * - System apps and apps installed through the App Store: read + write.
- * - External apps (sideloaded): read-only balance.
+ * - All external apps: read-only (profile + balance).
  */
 
 export const ACCOUNT_BRIDGE_REQUEST = "__pyhdraAccountRequest";
 export const ACCOUNT_BRIDGE_RESPONSE = "__pyhdraAccountResponse";
 
-export type AccountBridgeAction = "getProfile" | "updateBalance";
+export type AccountBridgeAction = "getProfile";
 
 export type AccountBridgeRequest = {
   __pyhdra: typeof ACCOUNT_BRIDGE_REQUEST;
   action: AccountBridgeAction;
-  balance?: number;
   requestId: number;
 };
 
 export type AccountBridgeResponse = {
   __pyhdra: typeof ACCOUNT_BRIDGE_RESPONSE;
   allowed: boolean;
-  balance?: number;
   profile?: unknown;
   requestId: number;
 };
@@ -82,11 +79,6 @@ export const ACCOUNT_BRIDGE_SCRIPT = `
         return res.allowed ? res.profile : null;
       });
     },
-    updateBalance: function (balance) {
-      return request("updateBalance", { balance: balance }).then(function (res) {
-        return Boolean(res.allowed);
-      });
-    }
   };
 })();
 </script>`;

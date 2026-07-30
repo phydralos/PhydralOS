@@ -1,5 +1,5 @@
-import { basename, join } from "path";
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { join } from "path";
+import { memo, useEffect, useRef, useState } from "react";
 import { type ComponentProcessProps } from "components/system/Apps/RenderComponent";
 import useWindowSize from "components/system/Window/useWindowSize";
 import { useAuthContext } from "contexts/auth";
@@ -10,7 +10,7 @@ import {
   injectAccountBridge,
   isAccountBridgeRequest,
 } from "lib/accountBridge";
-import { getInstalledApps, type AppManifest } from "utils/appInstaller";
+import { type AppManifest } from "utils/appInstaller";
 import { bufferToUrl, getExtension } from "utils/functions";
 
 type LoadedAppManifest = Partial<AppManifest> & {
@@ -41,28 +41,12 @@ const LoadedApp: FC<ComponentProcessProps> = ({ id }) => {
     processes: { [id]: { url = "" } = {} } = {},
     title,
   } = useProcesses();
-  const { updateBalance, user } = useAuthContext();
-  const { exists, readFile, readdir, lstat, mkdirRecursive, writeFile } =
-    useFileSystem();
+  const { user } = useAuthContext();
+  const { exists, readFile } = useFileSystem();
   const { updateWindowSize } = useWindowSize(id);
   const [blobUrl, setBlobUrl] = useState("");
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const createdUrlsRef = useRef<string[]>([]);
-
-  const fsBridgeFunctions = useMemo(
-    () => ({
-      exists,
-      lstat,
-      mkdirRecursive,
-      readFile,
-      readdir,
-      rmdir: (): Promise<boolean> => Promise.resolve(true),
-      unlink: (): Promise<boolean> => Promise.resolve(true),
-      updateFolder: (): void => undefined,
-      writeFile,
-    }),
-    [exists, lstat, mkdirRecursive, readFile, readdir, writeFile]
-  );
 
   useEffect(() => {
     const revokeCreatedUrls = (): void => {
@@ -251,8 +235,7 @@ const LoadedApp: FC<ComponentProcessProps> = ({ id }) => {
     };
   }, [argument, exists, id, readFile, title, updateWindowSize, url]);
 
-  // Account bridge: respond to iframe account requests.
-  // Read is always allowed; write only for App Store installed apps.
+  // Account bridge: respond to iframe account requests (read-only).
   useEffect(() => {
     const handleMessage = async (
       event: MessageEvent<unknown>
@@ -264,10 +247,6 @@ const LoadedApp: FC<ComponentProcessProps> = ({ id }) => {
       const { data } = event;
 
       if (!isAccountBridgeRequest(data)) return;
-
-      const appId = basename(url);
-      const installedApps = await getInstalledApps(fsBridgeFunctions);
-      const isAppStoreApp = installedApps[appId]?.source === "appstore";
 
       if (data.action === "getProfile") {
         frameWindow.postMessage(
@@ -286,27 +265,13 @@ const LoadedApp: FC<ComponentProcessProps> = ({ id }) => {
           },
           { targetOrigin: "*" }
         );
-      } else if (data.action === "updateBalance") {
-        const allowed =
-          isAppStoreApp &&
-          typeof data.balance === "number" &&
-          (await updateBalance(data.balance));
-
-        frameWindow.postMessage(
-          {
-            __pyhdra: ACCOUNT_BRIDGE_RESPONSE,
-            allowed,
-            requestId: data.requestId,
-          },
-          { targetOrigin: "*" }
-        );
       }
     };
 
     window.addEventListener("message", handleMessage);
 
     return () => window.removeEventListener("message", handleMessage);
-  }, [fsBridgeFunctions, updateBalance, url, user]);
+  }, [url, user]);
 
   if (!blobUrl) {
     return (
