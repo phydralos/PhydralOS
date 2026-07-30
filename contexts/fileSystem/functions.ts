@@ -1,0 +1,142 @@
+import { join } from "path";
+import type HTTPRequest from "browserfs/dist/node/backend/HTTPRequest";
+import type IndexedDBFileSystem from "browserfs/dist/node/backend/IndexedDB";
+import type OverlayFS from "browserfs/dist/node/backend/OverlayFS";
+import type InMemoryFileSystem from "browserfs/dist/node/backend/InMemory";
+import { type FileSystemObserver } from "contexts/fileSystem/useFileSystemContextState";
+import { FS_HANDLES } from "utils/constants";
+import { type RootFileSystem } from "contexts/fileSystem/useAsyncFs";
+import {
+  KEYVAL_STORE_NAME,
+  getFileSystemHandles,
+  getKeyValStore,
+  supportsIndexedDB,
+} from "contexts/fileSystem/core";
+
+const KNOWN_IDB_DBS = ["/data/saves", "keyval-store"];
+
+const observers = new Map<string, FileSystemObserver>();
+
+export const addFileSystemHandle = async (
+  directory: string,
+  handle: FileSystemDirectoryHandle,
+  mappedName: string,
+  observer?: FileSystemObserver
+): Promise<void> => {
+  if (!(await supportsIndexedDB())) return;
+
+  const db = await getKeyValStore();
+  const dirPath = join(directory, mappedName);
+
+  try {
+    await db.put(
+      KEYVAL_STORE_NAME,
+      {
+        ...(await getFileSystemHandles()),
+        [dirPath]: handle,
+      },
+      FS_HANDLES
+    );
+
+    if (observer) observers.set(dirPath, observer);
+  } catch {
+    // Ignore errors storing handle
+  }
+};
+
+export const removeFileSystemHandle = async (
+  directory: string
+): Promise<void> => {
+  if (!(await supportsIndexedDB())) return;
+
+  const [{ [directory]: _removedHandle, ...handles }, db] = await Promise.all([
+    getFileSystemHandles(),
+    getKeyValStore(),
+  ]);
+
+  try {
+    await db.put(KEYVAL_STORE_NAME, handles, FS_HANDLES);
+
+    observers.get(directory)?.disconnect();
+    observers.delete(directory);
+  } catch {
+    // Ignore errors storing handle
+  }
+};
+
+export const requestPermission = async (
+  url: string
+): Promise<PermissionState | false> => {
+  const fsHandles = await getFileSystemHandles();
+  const handle = fsHandles[url];
+
+  if (handle) {
+    const currentPermissions = await handle.queryPermission();
+
+    if (currentPermissions === "prompt") {
+      await handle.requestPermission();
+    } else if (currentPermissions === "granted") {
+      throw new Error("Permission already granted");
+    }
+
+    return handle.queryPermission();
+  }
+
+  return false;
+};
+
+export const resetStorage = (rootFs?: RootFileSystem): Promise<void> =>
+  new Promise((resolve, reject) => {
+    setTimeout(reject, 3000);
+
+    const FS_VERSION_KEY = "pyhdra-os-fs-version";
+    const savedVersion = localStorage.getItem(FS_VERSION_KEY);
+    window.localStorage.clear();
+    window.sessionStorage.clear();
+    if (savedVersion) {
+      try {
+        localStorage.setItem(FS_VERSION_KEY, savedVersion);
+      } catch {
+        // Ignore storage errors
+      }
+    }
+
+    const clearFs = (): void => {
+      const overlayFs = rootFs?._getFs("/")?.fs as OverlayFS;
+      const overlayedFileSystems = overlayFs?.getOverlayedFileSystems();
+      const readable = overlayedFileSystems?.readable as HTTPRequest;
+      const writable = overlayedFileSystems?.writable as
+        | IndexedDBFileSystem
+        | InMemoryFileSystem;
+
+      readable?.empty();
+
+      if (writable?.getName() === "InMemory" || !writable?.empty) {
+        resolve();
+      } else {
+        writable.empty((apiError) => (apiError ? reject(apiError) : resolve()));
+      }
+    };
+
+    if (window.indexedDB) {
+      import("idb").then(async ({ deleteDB }) => {
+        try {
+          const dbs = window.indexedDB.databases
+            ? (await window.indexedDB.databases())
+                .filter(
+                  ({ name }) => typeof name === "string" && name !== "browserfs"
+                )
+                .map(({ name }) => name as string)
+            : KNOWN_IDB_DBS;
+
+          await Promise.all(dbs.map((name) => deleteDB(name)));
+        } catch {
+          // Ignore errors deleting databases
+        } finally {
+          clearFs();
+        }
+      });
+    } else {
+      clearFs();
+    }
+  });

@@ -1,0 +1,293 @@
+import dynamic from "next/dynamic";
+import { type Processes } from "contexts/process/types";
+import { FOLDER_ICON, TASKBAR_HEIGHT } from "utils/constants";
+
+const directory: Processes = {
+  AppStore: {
+    Component: dynamic(() => import("components/apps/AppStore")),
+    allowResizing: false,
+    backgroundColor: "#141414",
+    defaultSize: {
+      height: 680,
+      width: 390,
+    },
+    icon: "/System/Icons/appstore.svg",
+    title: "Play Store",
+  },
+  Browser: {
+    Component: dynamic(() => import("components/apps/Browser")),
+    backgroundColor: "#FFF",
+    defaultSize: {
+      height: 500,
+      width: 600,
+    },
+    icon: "/System/Icons/chromium.webp",
+    title: "Browser",
+  },
+  DPaint: {
+    Component: dynamic(() => import("components/apps/PhotoMods/DPaint")),
+    backgroundColor: "#000",
+    defaultSize: {
+      height: 500,
+      width: 700,
+    },
+    icon: "/System/Icons/dpaint.svg",
+    title: "DPaint",
+  },
+  DevTools: {
+    Component: dynamic(() => import("components/apps/DevTools")),
+    backgroundColor: "#242424",
+    defaultSize: {
+      height: 380,
+      width: 545,
+    },
+    icon: "/System/Icons/eruda.webp",
+    libs: [
+      "/Program Files/Eruda/eruda.js",
+      "/Program Files/Eruda/eruda-monitor.js",
+    ],
+    singleton: true,
+    title: "DevTools",
+  },
+  ExifViewer: {
+    Component: dynamic(() => import("components/apps/ExifViewer")),
+    backgroundColor: "#1e1e2e",
+    defaultSize: {
+      height: 500,
+      width: 700,
+    },
+    icon: "/System/Icons/exif.svg",
+    title: "EXIF Viewer",
+  },
+  FileExplorer: {
+    Component: dynamic(() => import("components/apps/FileExplorer")),
+    backgroundColor: "#202020",
+    defaultSize: {
+      height: 325,
+      width: 447,
+    },
+    icon: FOLDER_ICON,
+    title: "File Explorer",
+  },
+  Installer: {
+    Component: dynamic(() => import("components/apps/Installer")),
+    backgroundColor: "#1e1e2e",
+    defaultSize: {
+      height: 480,
+      width: 520,
+    },
+    icon: "/System/Icons/installer.svg",
+    title: "App Installer",
+  },
+  LoadedApp: {
+    Component: dynamic(() => import("components/apps/LoadedApp")),
+    backgroundColor: "#fff",
+    defaultSize: {
+      height: 480,
+      width: 640,
+    },
+    icon: "/System/Icons/loadedapp.svg",
+    title: "App",
+  },
+  Marked: {
+    Component: dynamic(() => import("components/apps/Marked")),
+    backgroundColor: "#FFF",
+    defaultSize: {
+      height: 480,
+      width: 560,
+    },
+    icon: "/System/Icons/marked.webp",
+    libs: [
+      "/Program Files/MUST READ/marked.min.js",
+      "/Program Files/MUST READ/purify.min.js",
+    ],
+    title: "MUST READ",
+  },
+  MonacoEditor: {
+    Component: dynamic(() => import("components/apps/MonacoEditor")),
+    backgroundColor: "#1E1E1E",
+    defaultSize: {
+      height: 480,
+      width: 544,
+    },
+    dependantLibs: [
+      "/Program Files/Pyhdral Editor/vs/loader.js",
+      "/Program Files/Pyhdral Editor/vs/editor/editor.main.js",
+      "/Program Files/Pyhdral Editor/vs/editor/editor.main.css",
+      "/Program Files/Pyhdral Editor/vs/editor/editor.main.nls.js",
+    ],
+    icon: "/System/Icons/monaco.webp",
+    title: "Pyhdral Editor",
+  },
+  OpenType: {
+    Component: dynamic(() => import("components/apps/OpenType")),
+    backgroundColor: "#FFF",
+    icon: "/System/Icons/opentype.webp",
+    preferProcessIcon: true,
+    title: "OpenType",
+  },
+  OpenWith: {
+    Component: dynamic(() => import("components/system/Dialogs/OpenWith")),
+    allowResizing: false,
+    backgroundColor: "#FFF",
+    defaultSize: {
+      height: 492,
+      width: 392,
+    },
+    dialogProcess: true,
+    hideTaskbarEntry: true,
+    hideTitlebar: true,
+    icon: "/System/Icons/unknown.webp",
+    title: "Open With",
+  },
+  PDF: {
+    Component: dynamic(() => import("components/apps/PDF")),
+    backgroundColor: "#525659",
+    icon: "/System/Icons/pdf.webp",
+    libs: ["/Program Files/PDF.js/pdf.js"],
+    title: "PDF",
+  },
+  Paint: {
+    Component: dynamic(() => import("components/apps/Paint")),
+    backgroundColor: "#808080",
+    icon: "/System/Icons/paint.webp",
+    libs: ["/Program Files/jspaint/index.html"],
+    title: "Paint",
+  },
+  Photos: {
+    Component: dynamic(() => import("components/apps/Photos")),
+    backgroundColor: "#222",
+    defaultSize: {
+      height: 432,
+      width: 576,
+    },
+    hideTitlebarIcon: true,
+    icon: "/System/Icons/photos.webp",
+    title: "Photos",
+  },
+  Properties: {
+    Component: dynamic(() => import("components/system/Dialogs/Properties")),
+    allowResizing: false,
+    backgroundColor: "rgb(240, 240, 240)",
+    defaultSize: {
+      height: 412,
+      width: 361,
+    },
+    dialogProcess: true,
+    hideMaximizeButton: true,
+    hideMinimizeButton: true,
+    icon: "",
+    title: "Properties",
+  },
+  Run: {
+    Component: dynamic(() => import("components/system/Dialogs/Run")),
+    allowResizing: false,
+    defaultSize: {
+      height: 174,
+      width: 397,
+    },
+    dialogProcess: true,
+    hideMaximizeButton: true,
+    hideMinimizeButton: true,
+    icon: "/System/Icons/run.webp",
+    initialRelativePosition: {
+      bottom: TASKBAR_HEIGHT + 11,
+      left: 15,
+    },
+    singleton: true,
+    title: "Run",
+  },
+  ScreenSaver: {
+    Component: dynamic(() => import("components/system/Dialogs/ScreenSaver")),
+    allowResizing: false,
+    dialogProcess: true,
+    hasWindow: false,
+    hideTaskbarEntry: true,
+    icon: "/System/Icons/screensaver.webp",
+    singleton: true,
+    title: "Screen Saver",
+  },
+  Terminal: {
+    Component: dynamic(() => import("components/apps/Terminal")),
+    backgroundBlur: "8px",
+    backgroundColor: "rgba(12, 12, 12, 0.5)",
+    defaultSize: {
+      height: 374,
+      width: 615,
+    },
+    icon: "/System/Icons/xterm.webp",
+    libs: [
+      "/Program Files/Pyhdral Terminal/xterm.css",
+      "/Program Files/Pyhdral Terminal/xterm.js",
+      "/Program Files/Pyhdral Terminal/xterm-addon-fit.js",
+      "/Program Files/Pyhdral Terminal/local-echo.js",
+    ],
+    preferProcessIcon: true,
+    title: "Pyhdral Terminal",
+  },
+  TinyMCE: {
+    Component: dynamic(() => import("components/apps/TinyMCE")),
+    backgroundColor: "#202124",
+    dependantLibs: [
+      "/Program Files/Notepad++/themes/silver/theme.min.js",
+      "/Program Files/Notepad++/models/dom/model.min.js",
+      "/Program Files/Notepad++/icons/default/icons.min.js",
+      "/Program Files/Notepad++/skins/ui/oxide/skin.min.css",
+    ],
+    icon: "/System/Icons/tinymce.webp",
+    libs: ["/Program Files/Notepad++/tinymce.min.js"],
+    title: "Notepad++",
+  },
+  Transfer: {
+    Component: dynamic(() => import("components/system/Dialogs/Transfer")),
+    allowResizing: false,
+    backgroundColor: "#FFF",
+    defaultSize: {
+      height: 163,
+      width: 400,
+    },
+    dialogProcess: true,
+    icon: "/System/Icons/copying.webp",
+    title: "",
+  },
+  VideoPlayer: {
+    Component: dynamic(() => import("components/apps/VideoPlayer")),
+    autoSizing: true,
+    backgroundColor: "#000",
+    defaultSize: {
+      height: 390,
+      width: 640,
+    },
+    icon: "/System/Icons/vlc.webp",
+    libs: [
+      "/Program Files/Video.js/video-js.min.css",
+      "/Program Files/Video.js/video.min.js",
+      "/Program Files/Video.js/Youtube.min.js",
+    ],
+    title: "Video Player",
+  },
+  Vim: {
+    Component: dynamic(() => import("components/apps/Vim")),
+    allowResizing: false,
+    backgroundColor: "#222324",
+    defaultSize: {
+      height: 448,
+      width: 595,
+    },
+    icon: "/System/Icons/vim.webp",
+    libs: ["/Program Files/Notepad/vim.js"],
+    singleton: true,
+    title: "Notepad",
+  },
+  Webamp: {
+    Component: dynamic(() => import("components/apps/Webamp")),
+    allowResizing: false,
+    hasWindow: false,
+    icon: "/System/Icons/webamp.webp",
+    libs: ["/Program Files/Audio Player/webamp.bundle.min.js"],
+    singleton: true,
+    title: "Audio Player",
+  },
+};
+
+export default directory;
